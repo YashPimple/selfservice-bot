@@ -1,26 +1,97 @@
 import * as core from '@actions/core'
-import { wait } from './wait'
+import * as github from '@actions/github'
+import * as yaml from 'js-yaml'
 
-/**
- * The main function for the action.
- * @returns {Promise<void>} Resolves when the action is complete.
- */
-export async function run(): Promise<void> {
+async function run() {
   try {
-    const ms: string = core.getInput('milliseconds')
+    const token = process.env.BOT_TOKEN
+    if (!token) {
+      throw new Error('GitHub token not found')
+    }
 
-    // Debug logs are only output if the `ACTIONS_STEP_DEBUG` secret is true
-    core.debug(`Waiting ${ms} milliseconds ...`)
+    const client = github.getOctokit(token)
+    const { owner, repo, number } = github.context.issue
 
-    // Log the current timestamp, wait, then log the new timestamp
-    core.debug(new Date().toTimeString())
-    await wait(parseInt(ms, 10))
-    core.debug(new Date().toTimeString())
+    // Fetch issue comments
+    const comments = await client.rest.issues.listComments({
+      owner,
+      repo,
+      issue_number: number
+    })
 
-    // Set outputs for other workflow steps to use
-    core.setOutput('time', new Date().toTimeString())
-  } catch (error) {
-    // Fail the workflow run if an error occurs
-    if (error instanceof Error) core.setFailed(error.message)
+    for (const comment of comments.data) {
+      if (comment.body && comment.body.includes('/assign')) {
+        const assignee = extractAssignee(comment.body)
+        if (assignee) {
+          await assignIssue(client, owner, repo, number, assignee)
+          break
+        }
+      }
+    }
+  } catch (error: any) {
+    core.setFailed(error.message)
   }
 }
+
+function extractAssignee(commentBody: string): string | null {
+  const assigneeCommandIndex = commentBody.indexOf('/assign')
+  if (assigneeCommandIndex !== -1) {
+    const assigneeSubstring = commentBody
+      .substring(assigneeCommandIndex + '/assign'.length)
+      .trim()
+
+    const usernameMatch = assigneeSubstring.match(/@[a-zA-Z0-9_-]+/)
+    if (usernameMatch) {
+      return usernameMatch[0].substring(1)
+    }
+  }
+  return null
+}
+
+async function assignIssue(
+  client: ReturnType<typeof github.getOctokit>,
+  owner: string,
+  repo: string,
+  issueNumber: number,
+  assignee: string
+) {
+  const configResponse = await client.rest.repos.getContent({
+    owner,
+    repo,
+    path: 'maintainers.yaml'
+  })
+
+  if (
+    Array.isArray(configResponse.data) ||
+    typeof configResponse.data !== 'object' ||
+    !('content' in configResponse.data)
+  ) {
+    throw new Error('Invalid config response')
+  }
+  const configContent = Buffer.from(
+    configResponse.data.content,
+    'base64'
+  ).toString()
+
+  const maintainersConfig = yaml.load(configContent) as Record<string, string[]>
+
+  const userRole = Object.keys(maintainersConfig).find(role =>
+    maintainersConfig[role].includes(assignee)
+  )
+
+  if (userRole) {
+    // Assign the issue to the assignee
+    await client.rest.issues.addAssignees({
+      owner,
+      repo,
+      issue_number: issueNumber,
+      assignees: [assignee]
+    })
+  } else {
+    throw new Error(
+      `User ${assignee} is not authorized to be assigned the issue.`
+    )
+  }
+}
+
+run()
