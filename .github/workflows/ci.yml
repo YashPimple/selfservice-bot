@@ -26,6 +26,6 @@ jobs:
         run: npm install
 
       - name: Execute Assign Script
-        run: node src/main.ts
+        run: node main.ts
         env:
           GITHUB_TOKEN: ${{ secrets.BOT_TOKEN }}
