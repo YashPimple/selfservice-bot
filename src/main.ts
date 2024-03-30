@@ -58,7 +58,7 @@ async function assignIssue(
   const configResponse = await client.rest.repos.getContent({
     owner,
     repo,
-    path: 'maintainers.yaml'
+    path: 'maintainer.yaml'
   })
 
   if (
