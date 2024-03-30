@@ -27,6 +27,6 @@ jobs:
 
       - name: Execute Assign Script
         run: |
-           cd src && tsc main.ts
+           cd src && node --experimental-modules main.ts
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
