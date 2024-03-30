@@ -1,9 +1,9 @@
-name: Continuous Integration
+name: self-assign bot
 
 on:
-   issue_comment:
+  issue_comment:
     types: [created]
-  
+
 permissions:
   contents: read
 
@@ -19,13 +19,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version-file: .node-version
-          cache: npm
+          node-version: 20
+          cache: 'npm'
 
       - name: Install Dependencies
         run: npm install
 
       - name: Execute Assign Script
-        run: ./ && cd src && node main.ts
+        uses: ./
         env:
-          GITHUB_TOKEN: ${{ secrets.BOT_TOKEN }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
