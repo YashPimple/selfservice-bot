@@ -4,20 +4,25 @@ import * as yaml from 'js-yaml'
 
 async function run() {
   try {
+    console.log('Starting the action');
     const token = process.env.BOT_TOKEN
     if (!token) {
       throw new Error('GitHub token not found')
     }
+    console.log('GitHub token found:', token);
 
     const client = github.getOctokit(token)
     const { owner, repo, number } = github.context.issue
 
+    console.log('Repository:', owner + '/' + repo);
+    console.log('Issue number:', number);
     // Fetch issue comments
     const comments = await client.rest.issues.listComments({
       owner,
       repo,
       issue_number: number
     })
+    console.log('Fetched comments:', comments.data.length);
 
     for (const comment of comments.data) {
       if (comment.body && comment.body.includes('/assign')) {
@@ -87,6 +92,7 @@ async function assignIssue(
       issue_number: issueNumber,
       assignees: [assignee]
     })
+    console.log('Issue assigned successfully');
   } else {
     throw new Error(
       `User ${assignee} is not authorized to be assigned the issue.`
