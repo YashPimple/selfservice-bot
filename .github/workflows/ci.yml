@@ -1,4 +1,4 @@
-name: self-assign bot
+name: Bot Workflow
 
 on:
   issue_comment:
@@ -8,25 +8,27 @@ permissions:
   contents: read
 
 jobs:
-  test-action:
-    name: GitHub Actions Test
+  run-bot:
+    name: Run Bot
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v2
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: '14'
 
-      - name: Install Dependencies
-        run: npm install
+      - name: Install dependencies
+        run: npm install typescript @types/node js-yaml @actions/github
 
-      - name: Execute Assign Script
+      - name: Run Bot
         run: |
-           cd src && node --experimental-modules main.ts
+          cd src
+          BOT_COMMAND="/assign,/unassign" 
+          npx ts-node main.ts
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          BOT_COMMAND: ${{ secrets.BOT_COMMAND }}
