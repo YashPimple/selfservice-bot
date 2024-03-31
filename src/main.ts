@@ -24,12 +24,16 @@ async function run() {
     })
     console.log('Fetched comments:', comments.data.length);
 
+    const botCommands = process.env.BOT_COMMAND?.split(',')
+
     for (const comment of comments.data) {
-      if (comment.body && comment.body.includes('/assign')) {
-        const assignee = extractAssignee(comment.body)
-        if (assignee) {
-          await assignIssue(client, owner, repo, number, assignee)
-          break
+      if (comment.body) {
+        const command = extractCommand(comment.body, botCommands)
+        if (command) {
+          // Execute logic based on command
+          console.log('Executing command:', command)
+          // Call the corresponding function for the command
+          await executeCommand(command, client, owner, repo, number)
         }
       }
     }
@@ -38,65 +42,45 @@ async function run() {
   }
 }
 
-function extractAssignee(commentBody: string): string | null {
-  const assigneeCommandIndex = commentBody.indexOf('/assign')
-  if (assigneeCommandIndex !== -1) {
-    const assigneeSubstring = commentBody
-      .substring(assigneeCommandIndex + '/assign'.length)
-      .trim()
-
-    const usernameMatch = assigneeSubstring.match(/@[a-zA-Z0-9_-]+/)
-    if (usernameMatch) {
-      return usernameMatch[0].substring(1)
+function extractCommand(commentBody: string, botCommands: string[] | undefined): string | null {
+  if (!botCommands) return null
+  for (const cmd of botCommands) {
+    if (commentBody.includes(cmd)) {
+      return cmd
     }
   }
   return null
 }
 
-async function assignIssue(
-  client: ReturnType<typeof github.getOctokit>,
-  owner: string,
-  repo: string,
-  issueNumber: number,
-  assignee: string
-) {
-  const configResponse = await client.rest.repos.getContent({
-    owner,
-    repo,
-    path: 'maintainer.yaml'
-  })
-
-  if (
-    Array.isArray(configResponse.data) ||
-    typeof configResponse.data !== 'object' ||
-    !('content' in configResponse.data)
-  ) {
-    throw new Error('Invalid config response')
+async function executeCommand(command: string, client: ReturnType<typeof github.getOctokit>, owner: string, repo: string, number: number) {
+  // Add logic to execute different commands
+  switch (command) {
+    case '/assign':
+      // Logic to assign issue
+      await assignIssue(client, owner, repo, number)
+      break;
+    case '/unassign':
+      // Logic to unassign issue
+      break;
+    // Add more cases for other commands
+    default:
+      console.log('Invalid command:', command)
+      break;
   }
-  const configContent = Buffer.from(
-    configResponse.data.content,
-    'base64'
-  ).toString()
+}
 
-  const maintainersConfig = yaml.load(configContent) as Record<string, string[]>
-
-  const userRole = Object.keys(maintainersConfig).find(role =>
-    maintainersConfig[role].includes(assignee)
-  )
-
-  if (userRole) {
-    // Assign the issue to the assignee
+async function assignIssue(client: ReturnType<typeof github.getOctokit>, owner: string, repo: string, issueNumber: number) {
+  const assignee = github.context.actor // Assign issue to the person who commented
+  try {
     await client.rest.issues.addAssignees({
       owner,
       repo,
       issue_number: issueNumber,
       assignees: [assignee]
     })
-    console.log('Issue assigned successfully');
-  } else {
-    throw new Error(
-      `User ${assignee} is not authorized to be assigned the issue.`
-    )
+    console.log(`Issue #${issueNumber} assigned to ${assignee}`)
+  } catch (error) {
+    console.error(`Error assigning issue #${issueNumber} to ${assignee}: ${error}`)
   }
 }
 
